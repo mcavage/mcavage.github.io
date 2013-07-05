@@ -1,4 +1,4 @@
 User-agent: *
 Disallow: 
 
-Sitemap: http://mcavage.github.io/sitemap.xml 
+Sitemap: http://mcavage.me/sitemap.xml 

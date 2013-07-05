@@ -2,10 +2,10 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
 
   <title><![CDATA[Mark Cavage]]></title>
-  <link href="http://mcavage.github.io/atom.xml" rel="self"/>
-  <link href="http://mcavage.github.io/"/>
-  <updated>2013-07-05T10:40:56-07:00</updated>
-  <id>http://mcavage.github.io/</id>
+  <link href="http://mcavage.me/atom.xml" rel="self"/>
+  <link href="http://mcavage.me/"/>
+  <updated>2013-07-05T10:46:32-07:00</updated>
+  <id>http://mcavage.me/</id>
   <author>
     <name><![CDATA[Mark Cavage]]></name>
     

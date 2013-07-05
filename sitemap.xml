@@ -1,19 +1,19 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>
     <url>
-        <loc>http://mcavage.github.io/about/</loc>
+        <loc>http://mcavage.me/about/</loc>
         <lastmod>2013-07-05T10:26:06-07:00</lastmod>
     </url>
     <url>
-        <loc>http://mcavage.github.io/blog/archives/</loc>
+        <loc>http://mcavage.me/blog/archives/</loc>
         <lastmod>2013-07-04T12:23:25-07:00</lastmod>
     </url>
     <url>
-        <loc>http://mcavage.github.io/</loc>
+        <loc>http://mcavage.me/</loc>
         <lastmod>2013-07-04T12:23:25-07:00</lastmod>
     </url>
     <url>
-        <loc>http://mcavage.github.io/robots.txt</loc>
+        <loc>http://mcavage.me/robots.txt</loc>
         <lastmod>2013-07-04T11:00:17-07:00</lastmod>
     </url>
 </urlset>
