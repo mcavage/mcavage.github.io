@@ -3,12 +3,12 @@
 <html>
 <head>
 	<meta charset="utf-8">
-	<title>Mark Cavage</title>
+	<title>Uploading Files to Manta from a browser - Mark Cavage</title>
 	<meta name="author" content="Mark Cavage">
 
 	
 	<meta name="description" content="How to use Signed URLs and CORS to Upload Files to Manta One of the very first questions that came up after launching
-Manta was how to have a &hellip;">
+Manta was how to have a browser &hellip;">
 	
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
@@ -92,18 +92,9 @@ Manta was how to have a &hellip;">
 </script>
 
 	
-	<div id="content" class="inner">
-
-
-    <article class="post">
-	<h2 class="title">
-		
-		<a href="/blog/2013/07/10/uploading-files-to-manta-from-a-browser/">
-		
-			Uploading Files to Manta From a Browser</a>
-	</h2>
-	<div class="entry-content">
-		<h2>How to use Signed URLs and CORS to Upload Files to Manta</h2>
+	<div id="content" class="inner"><article class="post">
+	<h2 class="title">Uploading Files to Manta From a Browser</h2>
+	<div class="entry-content"><h2>How to use Signed URLs and CORS to Upload Files to Manta</h2>
 
 <p>One of the very first questions that came up after launching
 <a href="https://www.joyent.com/products/manta">Manta</a> was how to have a browser
@@ -442,10 +433,7 @@ highlighted the relevant portions of a
 <a href="https://github.com/mcavage/manta-browser-upload">sample application</a> I created
 that does this using <a href="http://api.jquery.com/jQuery.ajax/">Ajax</a> and
 <a href="http://www.w3.org/TR/XMLHttpRequest2/">XHR Level 2</a>.  Comments welcome!</p>
-
-		
-		
-	</div>
+</div>
 
 
 <div class="meta">
@@ -470,16 +458,31 @@ that does this using <a href="http://api.jquery.com/jQuery.ajax/">Ajax</a> and
 
 </div>
 	
-	<div class="comments"><a href="/blog/2013/07/10/uploading-files-to-manta-from-a-browser/#disqus_thread">Comments</a></div>
+	<div class="comments"><a href="#disqus_thread">Comments</a></div>
 	
 </div>
 </article>
 
-<nav id="pagenavi">
-    
-    
-    <div class="center"><a href="/blog/archives">Blog Archives</a></div>
-</nav></div>
+	<div class="share">
+	<div class="addthis_toolbox addthis_default_style ">
+		
+		
+		<a class="addthis_button_tweet"></a>
+		
+		
+		
+	</div>
+	
+</div>
+
+
+
+<section id="comment">
+    <h2 class="title">Comments</h2>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+</section>
+</div>
 	<footer id="footer" class="inner">Copyright &copy; 2013
 
     Mark Cavage
@@ -498,7 +501,10 @@ that does this using <a href="http://api.jquery.com/jQuery.ajax/">Ajax</a> and
       var disqus_shortname = 'mcavage';
       
         
-        var disqus_script = 'count.js';
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://mcavage.me/blog/2013/07/10/uploading-files-to-manta-from-a-browser/';
+        var disqus_url = 'http://mcavage.me/blog/2013/07/10/uploading-files-to-manta-from-a-browser/';
+        var disqus_script = 'embed.js';
       
     (function () {
       var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;

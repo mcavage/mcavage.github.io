@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Manta | Mark Cavage]]></title>
+  <link href="http://mcavage.me/blog/categories/manta/atom.xml" rel="self"/>
+  <link href="http://mcavage.me/"/>
+  <updated>2013-07-10T11:57:25-07:00</updated>
+  <id>http://mcavage.me/</id>
+  <author>
+    <name><![CDATA[Mark Cavage]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Uploading Files to Manta from a browser]]></title>
+    <link href="http://mcavage.me/blog/2013/07/10/uploading-files-to-manta-from-a-browser/"/>
+    <updated>2013-07-10T09:09:00-07:00</updated>
+    <id>http://mcavage.me/blog/2013/07/10/uploading-files-to-manta-from-a-browser</id>
+    <content type="html"><![CDATA[<h2>How to use Signed URLs and CORS to Upload Files to Manta</h2>
+
+<p>One of the very first questions that came up after launching
+<a href="https://www.joyent.com/products/manta">Manta</a> was how to have a browser
+directly upload an object into Manta.  There are several reasons you would want
+this, but most obvious is that it allows clients to bypass your web server(s),
+which (1) reduces your bandwidth costs, and (2) reduces client latency.
+Unfortunately the browser security model is fairly complicated here as
+<a href="http://www.w3.org/TR/cors/">CORS</a> is brought into play.  To answer this
+question, I created a small (and ugly!)
+<a href="https://github.com/mcavage/manta-browser-upload">sample application</a> to
+illustrate how to accomplish this.  This blog post will explain the tricky
+pieces of the sample application; it will not standalone without you looking
+at the sample code.</p>
+
+<h2>A few concepts</h2>
+
+<h3>Signed URLs</h3>
+
+<p>There seems to be some general confusion around what
+<a href="https://apidocs.joyent.com/manta/api.html#signed-urls">signed urls</a> are used
+for.  Basically, signed URLs are a way for you to hand out an expiring &ldquo;ticket&rdquo;
+that allows somebody else to see a single, private Manta object.  For example,
+suppose I have an MP3 that I wanted to share with a few friends over email;
+rather than putting the file in <code>/:login/public</code>, and getting sued by the RIAA,
+I would place it in <code>/:login/stor/song.mp3</code>, and generate a signed URL to it,
+and just send the URL to them.  The common way you would generate one is with
+<a href="https://apidocs.joyent.com/manta/msign.html">msign</a>, but in this example we&rsquo;ll
+be generating it programatically.</p>
+
+<h3>CORS</h3>
+
+<p><a href="http://www.w3.org/TR/cors/">CORS</a>, or &ldquo;Cross-Origin-Resource-Sharing&rdquo; is a
+mechanism that allows browsers to access resources that did not originate on the
+same domain.  While functional, it&rsquo;s very complicated (personally, there is
+little else in the web world I hate more than CORS); for a gentler introduction
+than the W3C spec, see the
+<a href="https://developer.mozilla.org/en-US/docs/HTTP/Access_control_CORS">MDN page</a>.
+Manta fully supports CORS on a per-directory and per-object basis, so that you
+are empowered to be as restrictive or permissive as you like.  To achieve direct
+upload, you will need to set CORS headers on your directories.  In the examples
+below, I&rsquo;ve basically set them &ldquo;wide open.&rdquo;</p>
+
+<h2>The General Flow</h2>
+
+<p>The gist is that you are still running some web application, albeit a light one,
+that a browser does interact with to get &ldquo;tickets,&rdquo; that allow the browser to
+directly write into some object under your control.  There are other ways to
+accomplish doling out &ldquo;tickets,&rdquo; but this is the most practical.  In the example
+I made, each browser session gets their own &ldquo;dropbox,&rdquo; that the server sets up
+for them (in reality it would be tied to your webapp&rsquo;s users, not a session).
+The browser has some little HTML form, and when the user selects a file and
+submits the HTML form, the browser asks your webserver for a location to upload.
+Your webapp generates a Manta
+<a href="https://apidocs.joyent.com/manta/api.html#signed-urls">signed url</a>, and gives
+that to the browser.  The browser then creates an Ajax request and sends the
+bytes up. Here&rsquo;s an illustration of all that text:</p>
+
+<p><img src="/images/browser_upload_diagram.svg" alt="Upload Sequence Diagram" /></p>
+
+<p>Of course the devil is in the details&hellip;</p>
+
+<h3>Our Storage Layout</h3>
+
+<p>In this example I&rsquo;m using <code>/$MANTA_USER/stor/dropbox</code>, as the root for uploads.
+Note that <code>/:login/stor/</code> is &ldquo;private,&rdquo;  so only you can read and write data.
+For each browser session that comes in, our webserver creates
+<code>/:login/stor/dropbox/:session</code> (which is just a random number in this example).</p>
+
+<p>When a user selects a file to upload, we send it to
+<code>/:login/stor/dropbox/:session/:filename</code>.  If the user uploads the same file
+multiple times, it just gets overwritten.</p>
+
+<h2>The Web Server</h2>
+
+<p>We&rsquo;ll start with an examination of the important parts of the web server.  I
+used no dependencies in this example so there&rsquo;s no confusion about which toolkit
+makes more sense, etc.; it&rsquo;s all just &ldquo;straight up&rdquo;
+<a href="http://nodejs.org/api/http.html">node http</a>. I&rsquo;m not going to walk through
+every line of the example application, but instead just give some more context
+on the particularly tricky parts that may not be clear.</p>
+
+<h3>Creating a per-session directory</h3>
+
+<p>When we see a new user session (to reemphasize again, you assuredly want this
+based off your user&rsquo;s name or id or something), we create a &ldquo;private directory&rdquo;.
+Ignoring all the setup and node HTTP stuff, here&rsquo;s the bits that creates a
+per-session directory &ndash; I&rsquo;ve slightly modified the example code here to be
+readable out of context:</p>
+
+<p>``` javascript Creating a Directory with CORS options
+// &ldquo;cookie&rdquo; is the sessionid
+var dir = &lsquo;/&rsquo; + process.env.MANTA_USER + &lsquo;/stor/dropbox/&rsquo; + cookie;
+var opts = {</p>
+
+<pre><code>headers: {
+        'access-control-allow-headers': 'access-control-allow-origin, accept, origin, content-type',
+        'access-control-allow-methods': 'PUT,GET,HEAD,DELETE',
+        'access-control-allow-origin': '*'
+}
+</code></pre>
+
+<p>};
+mantaClient.mkdir(dir, opts, function (err) {</p>
+
+<pre><code>assert.ifError(err);
+
+// HTML is just the static string of our webapp
+res.setHeader('set-cookie', 'name=' + res.cookie);
+res.setHeader('content-type', 'text/html');
+res.setHeader('content-length', Buffer.byteLength(HTML));
+res.writeHead(200);
+res.end(HTML);
+</code></pre>
+
+<p>});
+```</p>
+
+<p>The important aspect to point out here is the <code>header</code> block we pass into the
+options block on <code>mkdir</code>.  When a write request comes into Manta in a &ldquo;CORS
+scenario,&rdquo; the server honors the CORS settings <em>on the parent directory</em>.  So
+setting up the requisite CORS headers on the directory we want to write into
+allows the browser to go through all the preflight garbage and send the headers
+it needs to for uploading an object directly.</p>
+
+<h3>Signing a Request</h3>
+
+<p>This portion is actually pretty straightforward and handled by the
+<a href="https://github.com/joyent/node-manta">Manta SDK</a>.  The only thing of interest
+here is that we&rsquo;re signing a request to the given URL with two methods:
+<code>OPTIONS</code> and <code>PUT</code>.  Normally you&rsquo;d only hand out a signed URL with one method
+signed, but for this case as the browser preflighs the request with the same URL
+we need the server side to honor both.  Again I&rsquo;ve slightly modified the example
+application code here:</p>
+
+<p>`&ldquo; javascript Signing a URL for the browser
+var body = &rdquo;;
+req.setEncoding(&lsquo;utf8&rsquo;);
+req.on(&lsquo;data&rsquo;, function (chunk) {</p>
+
+<pre><code>body += chunk;
+</code></pre>
+
+<p>});</p>
+
+<p>req.once(&lsquo;end&rsquo;, function () {</p>
+
+<pre><code>var params = qs.parse(body) || {};
+if (!params.file)
+  // send error
+
+var p = '/' + process.env.MANTA_USER + '/stor/dropbox/' + cookie + '/' + params.file;
+var opts = {
+    expires: new Date().getTime() + (3600 * 1000), // 1hr
+    path: p
+    method: ['OPTIONS', 'PUT'],
+};
+mantaClient.signURL(opts, function (err, signature) {
+    assert.ifError(err);
+
+    var signed = JSON.stringify({
+        url: process.env.MANTA_URL + signature
+    });
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('content-length', Buffer.byteLength(signed));
+    res.writeHead(200);
+    res.end(signed);
+});
+</code></pre>
+
+<p>```</p>
+
+<p>So in the example above, the webapp <code>POST</code>&rsquo;d a form to us with the file name
+the user wants to upload.  A &ldquo;real app&rdquo; would want to sanitize that, and stop
+<a href="https://en.wikipedia.org/wiki/Cross-site_request_forgery">CSRF</a> attacks, etc.,
+but that&rsquo;s outside the scope of this little application.  Here we blindly sign
+it, and spit the URL back to the browser.</p>
+
+<p>At this point we&rsquo;re basically done with what our little webapp needed to do.</p>
+
+<h2>Client Side</h2>
+
+<p>First, a disclaimer: I am <em>awful</em> at client-side code, so please don&rsquo;t be wed to
+anything I did here.  Anyway, so I made a single HTML page with an upload form
+and some <a href="http://jquery.com/">jQuery</a> pieces:  specifically I used their
+<a href="http://api.jquery.com/jQuery.ajax/">Ajax API</a> where it made sense, along with
+their <a href="http://api.jquery.com/category/forms/">Form Helpers</a>.  Lastly, so you can
+see progress information, I stuck in a
+<a href="http://jqueryui.com/progressbar/">progress bar</a>.</p>
+
+<p>Ok, enough preamble, let&rsquo;s see the code!</p>
+
+<p>```html The tried and true form</p>
+
+<pre><code>&lt;form enctype="multipart/form-data"&gt;
+  &lt;input name="file" type="file" accept="image/jpeg" /&gt;
+  &lt;input type="button" value="Upload" /&gt;
+&lt;/form&gt;
+</code></pre>
+
+<p>```</p>
+
+<p>Yup, that&rsquo;s a form.  What do we do when the user submits? As per our flows
+above, we first need to request a place to write the file to, so we ask the
+webserver to sign the file name &ndash; note this is &ldquo;straight up&rdquo; jQuery and ajax,
+nothing fancy about this:</p>
+
+<p>```javascript jQuery Sign The filename
+$(function() {</p>
+
+<pre><code>var file;
+$(':file').change(function(){
+    file = this.files[0];
+});
+
+$(":button").click(function () {
+    $.ajax({
+        url: 'sign',
+        type: 'POST',
+        data: {
+            file: file.name
+        }
+    }).done(function (signature) {
+        // signature looks like
+        // {
+        //   url: 'https://...'
+        // }
+    });
+});
+</code></pre>
+
+<p>```</p>
+
+<h3>Uploading the file to Manta</h3>
+
+<p>At long last, we can now push the raw bytes into Manta.  Our own webserver gave
+us a URL we can write to for an hour.  We now make an
+<a href="http://www.w3.org/TR/XMLHttpRequest2/">XHR2</a> request and directly <code>PUT</code> the
+data.</p>
+
+<p>```javascript XHR2.send() data
+function onSignature(signature) {</p>
+
+<pre><code>var xhr = new XMLHttpRequest();
+
+xhr.open('PUT', signature.url, true);
+xhr.setRequestHeader('accept', 'application/json');
+xhr.setRequestHeader('access-control-allow-origin', '*');
+xhr.setRequestHeader('content-type', 'image/jpeg');
+xhr.send(file);
+</code></pre>
+
+<p>}
+```</p>
+
+<p>A few notes:</p>
+
+<ul>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest?redirectlocale=en-US&amp;redirectslug=DOM%2FXMLHttpRequest#send(">XHR2.send()</a>)
+is the only way I know of to actually send an uninterpreted byte stream. XHR
+and jQuery&rsquo;s Ajax both send a <code>multipart</code> framed message, which Manta will not
+interpret; meaning you would end up with an object that still has HTTP framing
+noise in it.</li>
+<li>In this example I sent <code>access-control-allow-origin: *</code>.  That&rsquo;s specifically
+so that <em>future GET requests</em> will work from a web browser as well.  When
+reading an object, the CORS semantics are inferred from the object itself.</li>
+</ul>
+
+
+<p>That&rsquo;s pretty much it &ndash; once the browser completes you can see it using <code>mls</code> or
+whatever other tool you want.</p>
+
+<h2>Conclusion</h2>
+
+<p>This article explained how to construct a web application that allows clients to
+directly upload to <a href="https://www.joyent.com/products/manta">Manta</a>.  It
+highlighted the relevant portions of a
+<a href="https://github.com/mcavage/manta-browser-upload">sample application</a> I created
+that does this using <a href="http://api.jquery.com/jQuery.ajax/">Ajax</a> and
+<a href="http://www.w3.org/TR/XMLHttpRequest2/">XHR Level 2</a>.  Comments welcome!</p>
+]]></content>
+  </entry>
+  
+</feed>
