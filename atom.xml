@@ -4,7 +4,7 @@
   <title><![CDATA[Mark Cavage]]></title>
   <link href="http://mcavage.me/atom.xml" rel="self"/>
   <link href="http://mcavage.me/"/>
-  <updated>2013-07-10T11:57:25-07:00</updated>
+  <updated>2013-07-10T12:17:50-07:00</updated>
   <id>http://mcavage.me/</id>
   <author>
     <name><![CDATA[Mark Cavage]]></name>
@@ -30,7 +30,7 @@ Unfortunately the browser security model is fairly complicated here as
 question, I created a small (and ugly!)
 <a href="https://github.com/mcavage/manta-browser-upload">sample application</a> to
 illustrate how to accomplish this.  This blog post will explain the tricky
-pieces of the sample application; it will not standalone without you looking
+pieces of the sample application; it will not stand alone without looking
 at the sample code.</p>
 
 <h2>A few concepts</h2>
@@ -43,10 +43,11 @@ for.  Basically, signed URLs are a way for you to hand out an expiring &ldquo;ti
 that allows somebody else to see a single, private Manta object.  For example,
 suppose I have an MP3 that I wanted to share with a few friends over email;
 rather than putting the file in <code>/:login/public</code>, and getting sued by the RIAA,
-I would place it in <code>/:login/stor/song.mp3</code>, and generate a signed URL to it,
-and just send the URL to them.  The common way you would generate one is with
-<a href="https://apidocs.joyent.com/manta/msign.html">msign</a>, but in this example we&rsquo;ll
-be generating it programatically.</p>
+I would place it in <code>/:login/stor/song.mp3</code>, generate a signed URL to it,
+and just send the URL to them.
+<a href="https://apidocs.joyent.com/manta/msign.html">msign</a> is the command line utility
+that will generate a presigned URL, but in this example we&rsquo;ll be generating it
+programatically.</p>
 
 <h3>CORS</h3>
 
