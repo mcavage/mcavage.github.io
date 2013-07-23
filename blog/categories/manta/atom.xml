@@ -4,7 +4,7 @@
   <title><![CDATA[Category: Manta | Mark Cavage]]></title>
   <link href="http://mcavage.me/blog/categories/manta/atom.xml" rel="self"/>
   <link href="http://mcavage.me/"/>
-  <updated>2013-07-23T12:05:36-07:00</updated>
+  <updated>2013-07-23T12:09:31-07:00</updated>
   <id>http://mcavage.me/</id>
   <author>
     <name><![CDATA[Mark Cavage]]></name>
@@ -172,11 +172,11 @@ code will run on.  So, I just fired up <code>mlogin</code>, and setup my project
 script <em>in the manta VM</em> by prototyping with this:</p>
 
 <pre><code>$ mlogin /mark.cavage/stor/twitter/2013-07-23T00:11:23.772Z.json
-$ export HOME=/root
-$ cd $HOME
-$ npm install cld
-$ emacs lang.js
-$ head -1 $MANTA_INPUT_FILE | node lang.js
+mark.cavage@manta # export HOME=/root
+mark.cavage@manta # cd $HOME
+mark.cavage@manta # npm install cld
+mark.cavage@manta # emacs lang.js
+mark.cavage@manta # head -1 $MANTA_INPUT_FILE | node lang.js
 </code></pre>
 
 <p>And the script I ended up with was:</p>
