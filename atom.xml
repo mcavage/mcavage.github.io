@@ -4,7 +4,7 @@
   <title><![CDATA[Mark Cavage]]></title>
   <link href="http://mcavage.me/atom.xml" rel="self"/>
   <link href="http://mcavage.me/"/>
-  <updated>2013-07-10T12:33:02-07:00</updated>
+  <updated>2013-07-23T11:43:18-07:00</updated>
   <id>http://mcavage.me/</id>
   <author>
     <name><![CDATA[Mark Cavage]]></name>
@@ -12,6 +12,323 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Using node_modules in Manta]]></title>
+    <link href="http://mcavage.me/blog/2013/07/19/using-node-modules-in-manta/"/>
+    <updated>2013-07-19T13:47:00-07:00</updated>
+    <id>http://mcavage.me/blog/2013/07/19/using-node-modules-in-manta</id>
+    <content type="html"><![CDATA[<h2>How to use Node.js with node_modules in Manta</h2>
+
+<p>Continuing in the series of &ldquo;common real world Manta questions&rdquo;, another common
+one we hear a lot, at least from newcomers, is how to run
+<a href="http://nodejs.org/">node</a> with <code>node_modules</code>.  If you&rsquo;re not familar with
+node, it&rsquo;s basically the same problem as using ruby gems, perl modules, python
+eggs, etc.  You have a particular VM, and a particularly built set of add-ons
+that go with it, and you want all of that available to run your program.</p>
+
+<p>This post is going to walk you though writing a node program that uses several
+add-on modules (including native ones) to accomplish a real world task, which is
+an ad-hoc comparison of how
+<a href="https://code.google.com/p/chromium-compact-language-detector/">Google&rsquo;s Compact Language Detector</a>
+compares to the &ldquo;language&rdquo; attribute that exists on
+<a href="https://dev.twitter.com/docs/platform-objects/tweets">tweets</a>.  Because tweets
+are obviously very small, I was actually just curious myself how well this
+worked, so I built a small <code>node</code> script that uses extra <code>npm</code> modules to test
+this out.</p>
+
+<h2>Concepts</h2>
+
+<p>If you&rsquo;re not familiar yet with <a href="http://apidocs.joyent.com/manta">Manta</a>, Manta
+is an object store with a twist: you can run compute in-situ on objects stored
+there.  While the compute environment comes preloaded with a ton of standard
+utilities and libraries, sometimes you need custom code that isn&rsquo;t available, or
+is customized in some way.  To accomplish this you leverage two Manta concepts:
+<a href="http://apidocs.joyent.com/manta/jobs-reference.html#assets-assets-property">assets</a>
+and <a href="http://apidocs.joyent.com/manta/jobs-reference.html#initializing-compute-instances-init-property">init</a>;
+often these two are used together, as I will show you here.</p>
+
+<p>The gist is that you create an asset of your necessary code and upload it as an
+object to Manta.  When you submit a compute job, you specify the path to that
+object as an <code>asset</code> and Manta will automatically make it available to you in
+your compute environment on the filesystem, under <code>/assets/$MANTA_USER/...</code>.
+While you can then just unpack it as part of your <code>exec</code> line, this is actually
+fairly heavyweight, as <code>exec</code> gets run on <em>every</em> input object (recall that if
+Manta can, it will optimize by not evicting you from the virtual machine between
+every object). <code>init</code> allows you to run this once for the the full slice of
+time you get in the compute container.</p>
+
+<h2>Step 0: acquire some data</h2>
+
+<p>Since most of the twitter datasets are for-pay, I needed to get a sample dataset
+up.  I wrote a small <code>node2manta</code> daemon that just buffers up tweets into 1GB
+files locally and then pushes those up into Manta under a date-based folder.
+Beyond pointing you at the source (below, and the only npm module in play
+besides <code>manta</code> is <a href="https://github.com/ttezel/twit">twit</a>), I won&rsquo;t go into any
+detail as it&rsquo;s pretty straight-forward. In the scheme I used, we have 1 GB of
+tweets per object under the scheme <code>/$MANTA_USER/stor/twitter/$DATE.json</code>.</p>
+
+<figure class='code'><figcaption><span>pump tweet stream into Manta</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+<span class='line-number'>38</span>
+<span class='line-number'>39</span>
+<span class='line-number'>40</span>
+<span class='line-number'>41</span>
+<span class='line-number'>42</span>
+<span class='line-number'>43</span>
+<span class='line-number'>44</span>
+<span class='line-number'>45</span>
+<span class='line-number'>46</span>
+<span class='line-number'>47</span>
+<span class='line-number'>48</span>
+<span class='line-number'>49</span>
+<span class='line-number'>50</span>
+<span class='line-number'>51</span>
+<span class='line-number'>52</span>
+<span class='line-number'>53</span>
+<span class='line-number'>54</span>
+<span class='line-number'>55</span>
+<span class='line-number'>56</span>
+<span class='line-number'>57</span>
+<span class='line-number'>58</span>
+<span class='line-number'>59</span>
+<span class='line-number'>60</span>
+<span class='line-number'>61</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="kd">var</span> <span class="nx">assert</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;assert&#39;</span><span class="p">);</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">fs</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;fs&#39;</span><span class="p">);</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">manta</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;manta&#39;</span><span class="p">);</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">Twit</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;twit&#39;</span><span class="p">);</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">util</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;util&#39;</span><span class="p">);</span>
+</span><span class='line'>
+</span><span class='line'><span class="kd">var</span> <span class="nx">M</span> <span class="o">=</span> <span class="nx">manta</span><span class="p">.</span><span class="nx">createClient</span><span class="p">({</span>
+</span><span class='line'>  <span class="nx">sign</span><span class="o">:</span> <span class="nx">manta</span><span class="p">.</span><span class="nx">privateKeySigner</span><span class="p">({</span>
+</span><span class='line'>    <span class="nx">key</span><span class="o">:</span> <span class="nx">fs</span><span class="p">.</span><span class="nx">readFileSync</span><span class="p">(</span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">HOME</span> <span class="o">+</span> <span class="s1">&#39;/.ssh/id_rsa&#39;</span><span class="p">,</span> <span class="s1">&#39;utf8&#39;</span><span class="p">),</span>
+</span><span class='line'>    <span class="nx">keyId</span><span class="o">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">MANTA_KEY_ID</span><span class="p">,</span>
+</span><span class='line'>    <span class="nx">user</span><span class="o">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">MANTA_USER</span>
+</span><span class='line'>  <span class="p">}),</span>
+</span><span class='line'>  <span class="nx">user</span><span class="o">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">MANTA_USER</span><span class="p">,</span>
+</span><span class='line'>  <span class="nx">url</span><span class="o">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">MANTA_URL</span>
+</span><span class='line'><span class="p">});</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">T</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Twit</span><span class="p">({</span>
+</span><span class='line'>  <span class="nx">consumer_key</span><span class="o">:</span> <span class="s1">&#39;...&#39;</span><span class="p">,</span>
+</span><span class='line'>  <span class="nx">consumer_secret</span><span class="o">:</span> <span class="s1">&#39;...&#39;</span><span class="p">,</span>
+</span><span class='line'>  <span class="nx">access_token</span><span class="o">:</span> <span class="s1">&#39;...&#39;</span><span class="p">,</span>
+</span><span class='line'>  <span class="nx">access_token_secret</span><span class="o">:</span> <span class="s1">&#39;...&#39;</span>
+</span><span class='line'><span class="p">});</span>
+</span><span class='line'>
+</span><span class='line'><span class="kd">var</span> <span class="nx">bytes</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">f</span> <span class="o">=</span> <span class="s1">&#39;/var/tmp/tweets.json&#39;</span><span class="p">;</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">live</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'><span class="kd">var</span> <span class="nx">fstream</span> <span class="o">=</span> <span class="nx">fs</span><span class="p">.</span><span class="nx">createWriteStream</span><span class="p">(</span><span class="nx">f</span><span class="p">,</span> <span class="p">{</span><span class="nx">encoding</span><span class="o">:</span> <span class="s1">&#39;utf8&#39;</span><span class="p">});</span>
+</span><span class='line'><span class="nx">fstream</span><span class="p">.</span><span class="nx">once</span><span class="p">(</span><span class="s1">&#39;open&#39;</span><span class="p">,</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+</span><span class='line'>  <span class="kd">var</span> <span class="nx">k</span> <span class="o">=</span> <span class="nx">util</span><span class="p">.</span><span class="nx">format</span><span class="p">(</span><span class="s1">&#39;/%s/stor/twitter&#39;</span><span class="p">,</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">MANTA_USER</span><span class="p">);</span>
+</span><span class='line'>  <span class="nx">M</span><span class="p">.</span><span class="nx">mkdir</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>    <span class="nx">assert</span><span class="p">.</span><span class="nx">ifError</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+</span><span class='line'>    <span class="nx">live</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span>
+</span><span class='line'>  <span class="p">});</span>
+</span><span class='line'>
+</span><span class='line'><span class="kd">var</span> <span class="nx">tstream</span> <span class="o">=</span> <span class="nx">T</span><span class="p">.</span><span class="nx">stream</span><span class="p">(</span><span class="s1">&#39;statuses/sample&#39;</span><span class="p">);</span>
+</span><span class='line'><span class="nx">tstream</span><span class="p">.</span><span class="nx">on</span><span class="p">(</span><span class="s1">&#39;tweet&#39;</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">tweet</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>  <span class="k">if</span> <span class="p">(</span><span class="nx">live</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>    <span class="kd">var</span> <span class="nx">s</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">tweet</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;\n&#39;</span><span class="p">;</span>
+</span><span class='line'>    <span class="nx">bytes</span> <span class="o">+=</span> <span class="nx">Buffer</span><span class="p">.</span><span class="nx">byteLength</span><span class="p">(</span><span class="nx">s</span><span class="p">);</span>
+</span><span class='line'>    <span class="nx">fstream</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">s</span><span class="p">);</span>
+</span><span class='line'>    <span class="k">if</span> <span class="p">(</span><span class="nx">bytes</span> <span class="o">&gt;=</span> <span class="mi">1000000000</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>      <span class="nx">live</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>
+</span><span class='line'>      <span class="nx">fstream</span><span class="p">.</span><span class="nx">end</span><span class="p">();</span>
+</span><span class='line'>      <span class="kd">var</span> <span class="nx">k</span> <span class="o">=</span> <span class="nx">util</span><span class="p">.</span><span class="nx">format</span><span class="p">(</span><span class="s1">&#39;/%s/stor/twitter/%s.json&#39;</span><span class="p">,</span>
+</span><span class='line'>                          <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">MANTA_USER</span><span class="p">,</span>
+</span><span class='line'>                          <span class="k">new</span> <span class="nb">Date</span><span class="p">().</span><span class="nx">toISOString</span><span class="p">());</span>
+</span><span class='line'>      <span class="kd">var</span> <span class="nx">opts</span> <span class="o">=</span> <span class="p">{</span>
+</span><span class='line'>        <span class="nx">type</span><span class="o">:</span> <span class="s1">&#39;application/json&#39;</span>
+</span><span class='line'>      <span class="p">};</span>
+</span><span class='line'>      <span class="nx">fstream</span> <span class="o">=</span> <span class="nx">fs</span><span class="p">.</span><span class="nx">createReadStream</span><span class="p">(</span><span class="nx">f</span><span class="p">);</span>
+</span><span class='line'>      <span class="nx">M</span><span class="p">.</span><span class="nx">put</span><span class="p">(</span><span class="nx">k</span><span class="p">,</span> <span class="nx">fstream</span><span class="p">,</span> <span class="nx">opts</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>        <span class="nx">assert</span><span class="p">.</span><span class="nx">ifError</span><span class="p">(</span><span class="nx">err</span><span class="p">);</span>
+</span><span class='line'>        <span class="nx">fstream</span> <span class="o">=</span> <span class="nx">fs</span><span class="p">.</span><span class="nx">createWriteStream</span><span class="p">(</span><span class="nx">f</span><span class="p">,</span> <span class="p">{</span><span class="nx">encoding</span><span class="o">:</span> <span class="s1">&#39;utf8&#39;</span><span class="p">});</span>
+</span><span class='line'>        <span class="nx">fstream</span><span class="p">.</span><span class="nx">once</span><span class="p">(</span><span class="s1">&#39;open&#39;</span><span class="p">,</span> <span class="kd">function</span> <span class="p">()</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">live</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span>
+</span><span class='line'>          <span class="nx">bytes</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span><span class='line'>        <span class="p">});</span>
+</span><span class='line'>      <span class="p">});</span>
+</span><span class='line'>    <span class="p">}</span>
+</span><span class='line'>  <span class="p">}</span>
+</span><span class='line'><span class="p">});</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<h2>Step 1: mlogin, and write your code</h2>
+
+<p>Ok so we&rsquo;ve got some data, now it&rsquo;s time to write our map script.  In this case
+I&rsquo;m going to develop the <em>entire workflow</em> out of Manta using
+<a href="http://apidocs.joyent.com/manta/mlogin.html">mlogin</a>.  If you&rsquo;ve not seen
+<code>mlogin</code> before it&rsquo;s basically the REPL of Manta.  <code>mlogin</code> allows you to login
+to a temporay compute container with one of your objects mounted.  This is
+actually critical for us in building an asset with <code>node_modules</code> as we need an
+OS environment (i.e., compilers, shared libraries, etc) that matches what our
+code will run on.  So, I just fired up <code>mlogin</code>, and setup my project with <code>npm</code>
+(the <code>export HOME</code> bit is only to make
+<a href="https://github.com/TooTallNate/node-gyp">gyp</a> happy).  Then I just hacked out a
+script <em>in the manta VM</em> by prototyping with this:</p>
+
+<pre><code>$ mlogin /mark.cavage/stor/twitter/2013-07-23T00:11:23.772Z.json
+$ export HOME=/root
+$ cd $HOME
+$ npm install cld
+$ emacs lang.js
+$ head -1 $MANTA_INPUT_FILE | node lang.js
+</code></pre>
+
+<p>And the script I ended up with was:</p>
+
+<figure class='code'><figcaption><span>Parsing a stream of newline separated tweets</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="kd">var</span> <span class="nx">cld</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;cld&#39;</span><span class="p">);</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">readline</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;readline&#39;</span><span class="p">);</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">sprintf</span> <span class="o">=</span> <span class="nx">require</span><span class="p">(</span><span class="s1">&#39;util&#39;</span><span class="p">).</span><span class="nx">format</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'><span class="kd">var</span> <span class="nx">FMT</span> <span class="o">=</span> <span class="s1">&#39;%d %s %s&#39;</span><span class="p">;</span>
+</span><span class='line'><span class="kd">var</span> <span class="nx">rl</span> <span class="o">=</span> <span class="nx">readline</span><span class="p">.</span><span class="nx">createInterface</span><span class="p">({</span>
+</span><span class='line'>  <span class="nx">input</span><span class="o">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">stdin</span><span class="p">,</span>
+</span><span class='line'>  <span class="nx">output</span><span class="o">:</span> <span class="kc">false</span>
+</span><span class='line'><span class="p">});</span>
+</span><span class='line'>
+</span><span class='line'><span class="nx">rl</span><span class="p">.</span><span class="nx">on</span><span class="p">(</span><span class="s1">&#39;line&#39;</span><span class="p">,</span> <span class="kd">function</span> <span class="p">(</span><span class="nx">l</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>  <span class="k">try</span> <span class="p">{</span>
+</span><span class='line'>    <span class="kd">var</span> <span class="nx">obj</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">l</span><span class="p">);</span>
+</span><span class='line'>    <span class="kd">var</span> <span class="nx">lang</span> <span class="o">=</span> <span class="nx">cld</span><span class="p">.</span><span class="nx">detect</span><span class="p">(</span><span class="nx">obj</span><span class="p">.</span><span class="nx">text</span><span class="p">);</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">sprintf</span><span class="p">(</span><span class="nx">FMT</span><span class="p">,</span> <span class="p">(</span><span class="nx">lang</span><span class="p">.</span><span class="nx">code</span> <span class="o">===</span> <span class="nx">obj</span><span class="p">.</span><span class="nx">lang</span> <span class="o">?</span> <span class="mi">1</span> <span class="o">:</span> <span class="mi">0</span><span class="p">),</span> <span class="nx">lang</span><span class="p">.</span><span class="nx">code</span><span class="p">,</span> <span class="nx">obj</span><span class="p">.</span><span class="nx">lang</span><span class="p">));</span>
+</span><span class='line'>  <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="p">{}</span>
+</span><span class='line'><span class="p">});</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So every tweet gets mapped to a 3 column output of <code>$match $cld $twitter</code>, which
+we can reduce on.  Anyway, now that we&rsquo;ve got this coded up, let&rsquo;s tar and save
+into manta (again, from the <code>mlogin</code> session):</p>
+
+<pre><code>mark.cavage@manta # tar -cf tweet_lang_detect.tar lang.js node_modules
+mark.cavage@manta # mput -f tweet_lang_detect.tar /$MANTA_USER/stor
+...avage/stor/tweet_lang_detect.tar [=====================================================================&gt;] 100%  14.00MB
+mark.cavage@manta #
+</code></pre>
+
+<p>To be pedantic while we&rsquo;re here, we&rsquo;ll go ahead an write the reduce step as
+well, even though it&rsquo;s trivial.  I&rsquo;m just going to output two numbers, the first
+being the number of matches, and the second being the total dataset size.</p>
+
+<pre><code>mark.cavage@manta # head -10 $MANTA_INPUT_FILE | node lang.js | maggr -c1='sum,count'
+6,10
+mark.cavage@manta #
+</code></pre>
+
+<p>So given 10 inputs, we&rsquo;ve got a 60% success rate with <code>cld</code>. Let&rsquo;s see how it
+does on a larger sample set.</p>
+
+<p>You can now exit the <code>mlogin</code> session, we&rsquo;re ready to rock.</p>
+
+<h2>Step 2: Run a Map/Reduce Job</h2>
+
+<p>Ok, so to recap, we hacked up a map/reduce script with an asset using <code>mlogin</code>,
+and now we want to run a job on our dataset.  Twitter throttles your ability to
+suck their feed pretty aggressively, so by the time I wrote this blog I only had
+11GB of data:</p>
+
+<pre><code>$ mls /$MANTA_USER/stor/twitter | wc -l
+11
+</code></pre>
+
+<p>That said, they&rsquo;re just text files, so that should be a fairly large number of
+tweets.  Let&rsquo;s see how it does:</p>
+
+<pre><code>$ mfind -t o /$MANTA_USER/stor/twitter | \
+    mjob create -o -s /$MANTA_USER/stor/tweet_lang_detect.tar \
+                --init 'tar -xf /assets/$MANTA_USER/stor/tweet_lang_detect.tar' \
+                -m 'node lang.js' \
+                -r 'maggr -c1="sum,count"'
+added 11 inputs to f7af6bcf-2126-4b1d-b9d5-c0f25a162786
+2610121,3860111
+</code></pre>
+
+<p>How did I figure out what the <code>-s</code> and <code>--init</code> options should be you ask?
+Simple, I ran <code>mlogin</code> again with <code>-s</code> specified, and tested out what my untar
+line should be.</p>
+
+<p>Side point, if you&rsquo;re interested, this initial prototype took 1m19s to run. An
+enterprising individual would likely be able to cut that (at least) in half by
+&ldquo;pre-reducing&rdquo; as part of the map phase; in my case, ~1m latency was fine,
+because I&rsquo;m lazy.  Also, the entire time it took me to prototype this from no
+code to actually having my answer was about 20m (not counting the time it took
+to ingest data &ndash; I just ran that overnight).</p>
+
+<h2>Step 3: There is no step 3</h2>
+
+<p>We&rsquo;re actually done now.  Clearly you could go figure out more interesting
+statistics here, but really I just wanted to quickly see what <code>cld</code> did on a
+reasonable dataset (I had ~3.8M tweets); it turned out surprisingly close to my
+original prototype of 60% (~67% accurate on tweets).</p>
+
+<p>Also, while this example used <code>node</code> to illustrate a real world &ldquo;custom code&rdquo;
+problem, the same technique would apply to <code>python</code>, <code>ruby</code>, etc.; you need
+to get your &ldquo;tarball&rdquo; built up in the same way, and just push it back into
+Manta for future jobs to consume.</p>
+
+<p>Hopefully that helps!</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Uploading Files to Manta from a browser]]></title>
