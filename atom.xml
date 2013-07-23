@@ -4,7 +4,7 @@
   <title><![CDATA[Mark Cavage]]></title>
   <link href="http://mcavage.me/atom.xml" rel="self"/>
   <link href="http://mcavage.me/"/>
-  <updated>2013-07-23T12:14:41-07:00</updated>
+  <updated>2013-07-23T13:22:05-07:00</updated>
   <id>http://mcavage.me/</id>
   <author>
     <name><![CDATA[Mark Cavage]]></name>
@@ -215,7 +215,7 @@ tweets per object under the scheme <code>/$MANTA_USER/stor/twitter/$DATE.json</c
 I&rsquo;m going to develop the <em>entire workflow</em> out of Manta using
 <a href="http://apidocs.joyent.com/manta/mlogin.html">mlogin</a>.  If you&rsquo;ve not seen
 <code>mlogin</code> before it&rsquo;s basically the REPL of Manta.  <code>mlogin</code> allows you to login
-to a temporay compute container with one of your objects mounted.  This is
+to a temporary compute container with one of your objects mounted.  This is
 actually critical for us in building an asset with <code>node_modules</code> as we need an
 OS environment (i.e., compilers, shared libraries, etc) that matches what our
 code will run on.  So, I just fired up <code>mlogin</code>, and setup my project with <code>npm</code>
