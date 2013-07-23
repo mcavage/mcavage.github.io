@@ -369,7 +369,12 @@ mark.cavage@manta #
 
 <p>To be pedantic while we&rsquo;re here, we&rsquo;ll go ahead an write the reduce step as
 well, even though it&rsquo;s trivial.  I&rsquo;m just going to output two numbers, the first
-being the number of matches, and the second being the total dataset size.</p>
+being the number of matches, and the second being the total dataset size.  Note
+the reduce line below uses <a href="http://apidocs.joyent.com/manta/maggr.html">maggr</a>,
+which is just a simple &ldquo;math utility&rdquo; Manta provides for common summing/average
+operations. Other uses report success using
+<a href="https://code.google.com/p/crush-tools/">crush-tools</a>.  Use what you like,
+that&rsquo;s the power of Manta :)</p>
 
 <pre><code>mark.cavage@manta # head -10 $MANTA_INPUT_FILE | node lang.js | maggr -c1='sum,count'
 6,10
