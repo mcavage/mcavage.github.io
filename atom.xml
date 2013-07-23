@@ -4,7 +4,7 @@
   <title><![CDATA[Mark Cavage]]></title>
   <link href="http://mcavage.me/atom.xml" rel="self"/>
   <link href="http://mcavage.me/"/>
-  <updated>2013-07-23T12:09:31-07:00</updated>
+  <updated>2013-07-23T12:10:11-07:00</updated>
   <id>http://mcavage.me/</id>
   <author>
     <name><![CDATA[Mark Cavage]]></name>
@@ -278,7 +278,7 @@ into manta (again, from the <code>mlogin</code> session):</p>
 
 <pre><code>mark.cavage@manta # tar -cf tweet_lang_detect.tar lang.js node_modules
 mark.cavage@manta # mput -f tweet_lang_detect.tar /$MANTA_USER/stor
-...avage/stor/tweet_lang_detect.tar [=====================================================================&gt;] 100%  14.00MB
+...avage/stor/tweet_lang_detect.tar ==========================&gt;] 100%  14.00MB
 mark.cavage@manta #
 </code></pre>
 
