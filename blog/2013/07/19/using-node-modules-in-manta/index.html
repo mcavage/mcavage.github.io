@@ -142,7 +142,9 @@ files locally and then pushes those up into Manta under a date-based folder.
 Beyond pointing you at the source (below, and the only npm module in play
 besides <code>manta</code> is <a href="https://github.com/ttezel/twit">twit</a>), I won&rsquo;t go into any
 detail as it&rsquo;s pretty straight-forward. In the scheme I used, we have 1 GB of
-tweets per object under the scheme <code>/$MANTA_USER/stor/twitter/$DATE.json</code>.</p>
+tweets per object under the scheme <code>/$MANTA_USER/stor/twitter/$DATE.json</code>.  Note
+you need a <a href="https://dev.twitter.com/">twitter developer account</a> and application
+to fill in the <code>...</code> credentials in this snippet.</p>
 
 <figure class='code'><figcaption><span>pump tweet stream into Manta</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
 <span class='line-number'>2</span>
